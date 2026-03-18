@@ -10,6 +10,8 @@ INCOME_ARGS = 3
 COST_ARGS = 4
 STATS_ARGS = 2
 FLOAT_PARTS = 2
+MOUTH_FEB = 2
+ZERO = 0.0
 
 DateTuple = tuple[int, int, int]
 IncomeRecord = tuple[float, DateTuple]
@@ -17,8 +19,10 @@ CostRecord = tuple[str, float, DateTuple]
 
 
 def is_leap_year(year: int) -> bool:
-    return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
-
+    four = year % 4 == 0
+    hundred = year % 100 == 0
+    four_hundred = year % 400 == 0
+    return (four and not hundred) or four_hundred
 
 def extract_date(maybe_dt: str) -> DateTuple | None:
     parts = maybe_dt.split("-")
@@ -33,8 +37,9 @@ def extract_date(maybe_dt: str) -> DateTuple | None:
     if year < 1 or month < 1 or month > MAX_MONTH or day < 1:
         return None
 
-    days_in_month = [31, 29 if is_leap_year(year) else 28, 31, 30, 31, 30,
-                     31, 31, 30, 31, 30, 31]
+    days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    if month == MOUTH_FEB and is_leap_year(year):
+        days_in_month[1] = 29
 
     if day > days_in_month[month - 1]:
         return None
@@ -90,6 +95,16 @@ def cost_handler(parts: list[str], costs: list[CostRecord]) -> None:
     costs.append((category, amount, date_tuple))
     print(OP_SUCCESS_MSG)
 
+def date_before_or_equal( day: int, month: int, year: int,  # noqa: PLR0913
+                             stats_day: int,
+                             stats_month: int,
+                             stats_year: int) -> bool:
+    if year < stats_year or month < stats_month:
+        return True
+    if year > stats_year or month > stats_month:
+        return False
+    return day <= stats_day
+
 
 def calculate_capital(
     incomes: list[IncomeRecord],
@@ -97,18 +112,19 @@ def calculate_capital(
     stats_day: int,
     stats_month: int,
     stats_year: int) -> float:
-    total_capital = 0.0
+    total_capital = ZERO
     for amount, (day, month, year) in incomes:
-        if (year < stats_year) or (year == stats_year and month < stats_month) or \
-           (year == stats_year and month == stats_month and day <= stats_day):
+        if date_before_or_equal(day, month, year, stats_day, stats_month, stats_year):
             total_capital += amount
 
     for _, amount, (day, month, year) in costs:
-        if (year < stats_year) or (year == stats_year and month < stats_month) or \
-           (year == stats_year and month == stats_month and day <= stats_day):
+         if date_before_or_equal(day, month, year, stats_day, stats_month, stats_year):
             total_capital -= amount
     return total_capital
 
+def date_in_month( day: int, month: int, year: int,  # noqa: PLR0913
+    stats_day: int, stats_month: int, stats_year: int) -> bool:
+    return (year == stats_year and month == stats_month and day <= stats_day)
 
 def calculate_month_stat(
     incomes: list[IncomeRecord],
@@ -116,18 +132,17 @@ def calculate_month_stat(
     stats_day: int,
     stats_month: int,
     stats_year: int) -> tuple[float, dict[str, float]]:
-    month_incomes = 0.0
+    month_incomes = ZERO
     month_by_category: dict[str, float] = {}
 
     for amount, (day, month, year) in incomes:
-        if year == stats_year and month == stats_month and day <= stats_day:
+        if date_in_month(day, month, year, stats_day, stats_month, stats_year):
             month_incomes += amount
 
     for category, amount, (day, month, year) in costs:
-        if year == stats_year and month == stats_month and day <= stats_day:
-            month_by_category[category] = month_by_category.get(category, 0.0) + amount
+        if date_in_month(day, month, year, stats_day, stats_month, stats_year):
+            month_by_category[category] = month_by_category.get(category, ZERO) + amount
     return month_incomes, month_by_category
-
 
 def print_stats(  # noqa: PLR0913
     date: str,
@@ -163,8 +178,7 @@ def print_stats(  # noqa: PLR0913
 def stats_handler(
     parts: list[str],
     incomes: list[IncomeRecord],
-    costs: list[CostRecord]
-) -> None:
+    costs: list[CostRecord]) -> None:
     if len(parts) != STATS_ARGS:
         print(UNKNOWN_COMMAND_MSG)
         return
