@@ -4,14 +4,24 @@ UNKNOWN_COMMAND_MSG = "Unknown command!"
 NONPOSITIVE_VALUE_MSG = "Value must be greater than zero!"
 INCORRECT_DATE_MSG = "Invalid date!"
 OP_SUCCESS_MSG = "Added"
+DATE_PARTS = 3
+MAX_MONTH = 12
+INCOME_ARGS = 3
+COST_ARGS = 4
+STATS_ARGS = 2
+FLOAT_PARTS = 2
+
+DateTuple = tuple[int, int, int]
+IncomeRecord = tuple[float, DateTuple]
+CostRecord = tuple[str, float, DateTuple]
 
 
 def is_leap_year(year: int) -> bool:
     return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
 
-def extract_date(maybe_dt: str) -> tuple[int, int, int] | None:
+def extract_date(maybe_dt: str) -> DateTuple | None:
     parts = maybe_dt.split("-")
-    if len(parts) != 3:
+    if len(parts) != DATE_PARTS:
         return None
 
     for part in parts:
@@ -19,7 +29,7 @@ def extract_date(maybe_dt: str) -> tuple[int, int, int] | None:
             return None
 
     day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
-    if year < 1 or month < 1 or month > 12 or day < 1:
+    if year < 1 or month < 1 or month > MAX_MONTH or day < 1:
         return None
 
     days_in_month = [31, 29 if is_leap_year(year) else 28, 31, 30, 31, 30,
@@ -32,8 +42,8 @@ def extract_date(maybe_dt: str) -> tuple[int, int, int] | None:
 
 
 
-def income_handler(parts: list, incomes: list) -> None:
-    if len(parts) != 3:
+def income_handler(parts: list, incomes: list[IncomeRecord]) -> None:
+    if len(parts) != INCOME_ARGS:
         print(UNKNOWN_COMMAND_MSG)
         return
 
@@ -53,8 +63,8 @@ def income_handler(parts: list, incomes: list) -> None:
     incomes.append((amount, date_tuple))
     print(OP_SUCCESS_MSG)
 
-def cost_handler(parts: list, costs: list) -> None:
-    if len(parts) != 4:
+def cost_handler(parts: list, costs: list[CostRecord]) -> None:
+    if len(parts) != COST_ARGS:
         print(UNKNOWN_COMMAND_MSG)
         return
 
@@ -80,27 +90,28 @@ def cost_handler(parts: list, costs: list) -> None:
     print(OP_SUCCESS_MSG)
 
 
-def stats_handler(parts: list, incomes: list, costs: list) -> None:
-    if len(parts) != 2:
-        print(UNKNOWN_COMMAND_MSG)
-        return
-
-    date = parts[1]
-    date_tuple = extract_date(date)
-    if date_tuple is None:
-        print(INCORRECT_DATE_MSG)
-        return
-
-    stats_day, stats_month, stats_year = date_tuple
+def calculate_capital(incomes: list[IncomeRecord],
+                      costs: list[CostRecord],
+                      stats_day: int,
+                      stats_month: int,
+                      stats_year: int):
     total_capital = 0.0
     for amount, (day, month, year) in incomes:
-        if (year < stats_year) or (year == stats_year and month < stats_month) or (year == stats_year and month == stats_month and day <= stats_day):
+        if (year < stats_year) or (year == stats_year and month < stats_month) or \
+        (year == stats_year and month == stats_month and day <= stats_day):
             total_capital += amount
 
     for _, amount, (day, month, year) in costs:
-        if (year < stats_year) or (year == stats_year and month < stats_month) or (year == stats_year and month == stats_month and day <= stats_day):
+        if (year < stats_year) or (year == stats_year and month < stats_month) or \
+            (year == stats_year and month == stats_month and day <= stats_day):
             total_capital -= amount
+    return total_capital
 
+def calculate_month_stat(incomes: list[IncomeRecord],
+                         costs: list[CostRecord],
+                         stats_day: int,
+                         stats_month: int,
+                         stats_year: int):
     month_incomes = 0.0
     month_by_category = {}
 
@@ -111,17 +122,21 @@ def stats_handler(parts: list, incomes: list, costs: list) -> None:
     for category, amount, (day, month, year) in costs:
         if year == stats_year and month == stats_month and day <= stats_day:
             month_by_category[category] = month_by_category.get(category, 0.0) + amount
+    return month_incomes, month_by_category
 
-    month_total_costs = sum(month_by_category.values())
-    month_result = month_incomes - month_total_costs
-
+def print_stats(date: str,  # noqa: PLR0913
+                total_capital: float,
+                month_incomes: float,
+                month_total_costs: float,
+                month_result: float,
+                month_by_category: dict[str, float]):
     print(f"Ваша статистика по состоянию на {date}:")
     print(f"Суммарный капитал: {total_capital:.2f} рублей")
 
     if month_result >= 0:
-        print(f"В этом месяце прибыль составила {month_result:.2f} рублей")
+        print(f"В этом месяце прибыль составила {month_result:.2f} рублей")  # noqa: RUF001
     else:
-        print(f"В этом месяце убыток составил {abs(month_result):.2f} рублей")
+        print(f"В этом месяце убыток составил {abs(month_result):.2f} рублей")  # noqa: RUF001
 
     print(f"Доходы: {month_incomes:.2f} рублей")
     print(f"Расходы: {month_total_costs:.2f} рублей")
@@ -138,6 +153,27 @@ def stats_handler(parts: list, incomes: list, costs: list) -> None:
         print()
 
 
+def stats_handler(parts: list, incomes: list, costs: list) -> None:
+    if len(parts) != STATS_ARGS:
+        print(UNKNOWN_COMMAND_MSG)
+        return
+
+    date = parts[1]
+    date_tuple = extract_date(date)
+    if date_tuple is None:
+        print(INCORRECT_DATE_MSG)
+        return
+
+    stats_day, stats_month, stats_year = date_tuple
+    total_capital = calculate_capital(incomes, costs, stats_day, stats_month, stats_year)
+    month_incomes, month_by_category = calculate_month_stat(incomes, costs, stats_day, stats_month, stats_year)
+
+    month_total_costs = sum(month_by_category.values())
+    month_result = month_incomes - month_total_costs
+
+    print_stats(date, total_capital, month_incomes, month_total_costs, month_result, month_by_category)
+
+
 def parse_amount(amount_input: str) -> float | None:
     amount = amount_input.replace(",", ".")
 
@@ -151,7 +187,7 @@ def parse_amount(amount_input: str) -> float | None:
 
     if "." in amount:
         parts = amount.split(".")
-        if len(parts) != 2 or not parts[0] or not parts[1]:
+        if len(parts) != FLOAT_PARTS or not parts[0] or not parts[1]:
             return None
         if not parts[1].isdigit():
             return None
