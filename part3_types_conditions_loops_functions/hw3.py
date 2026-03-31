@@ -105,7 +105,7 @@ def find_category(common_category: str, target_category: str) -> bool:
 
 
 def cost_categories_handler() -> str:
-    result = []
+    result: list[str] = []
     for category, subcategories in EXPENSE_CATEGORIES.items():
         result.extend(f"{category}::{subcategory}" for subcategory in subcategories)
     return "\n".join(result)
@@ -121,11 +121,7 @@ def income_handler(amount: float, income_date: str) -> str:
         financial_transactions_storage.append({})
         return INCORRECT_DATE_MSG
 
-    financial_transactions_storage.append({
-        "type": "income",
-        "amount": amount,
-        "date": date_tuple
-    })
+    financial_transactions_storage.append({"type": "income", "amount": amount, "date": date_tuple})
     return OP_SUCCESS_MSG
 
 
@@ -148,20 +144,19 @@ def cost_handler(category_name: str, amount: float, income_date: str) -> str:
     if not find_category(common_category, target_category):
         financial_transactions_storage.append({})
         return NOT_EXISTS_CATEGORY
-    financial_transactions_storage.append({
-        "type": "cost",
-        "category": target_category,
-        "parent_category": common_category,
-        "amount": amount,
-        "date": date_tuple
-    })
+    financial_transactions_storage.append(
+        {
+            "type": "cost",
+            "category": target_category,
+            "parent_category": common_category,
+            "amount": amount,
+            "date": date_tuple,
+        }
+    )
     return OP_SUCCESS_MSG
 
 
-def date_before_or_equal(
-        transaction_date: tuple[int, int, int],
-        stats_date: tuple[int, int, int]
-) -> bool:
+def date_before_or_equal(transaction_date: tuple[int, int, int], stats_date: tuple[int, int, int]) -> bool:
     day, month, year = transaction_date
     stats_day, stats_month, stats_year = stats_date
 
@@ -176,13 +171,10 @@ def date_before_or_equal(
     return day <= stats_day
 
 
-def date_in_month(
-        transaction_date: tuple[int, int, int],
-        stats_date: tuple[int, int, int]
-) -> bool:
+def date_in_month(transaction_date: tuple[int, int, int], stats_date: tuple[int, int, int]) -> bool:
     day, month, year = transaction_date
     stats_day, stats_month, stats_year = stats_date
-    return (year == stats_year and month == stats_month and day <= stats_day)
+    return year == stats_year and month == stats_month and day <= stats_day
 
 
 def calculate_capital(stats_date: tuple[int, int, int]) -> float:
@@ -222,9 +214,7 @@ def calculate_month_stat(stats_date: tuple[int, int, int]) -> tuple[float, dict[
                 month_incomes += transaction["amount"]
             elif transaction["type"] == "cost":
                 parent_category = transaction["parent_category"]
-                month_by_category[parent_category] = (
-                        month_by_category.get(parent_category, 0.0) + transaction["amount"]
-                )
+                month_by_category[parent_category] = month_by_category.get(parent_category, 0.0) + transaction["amount"]
 
     return month_incomes, month_by_category
 
