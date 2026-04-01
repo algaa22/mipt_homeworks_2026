@@ -172,6 +172,12 @@ version = "0.1.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
+dev = [
+    { name = "faker" },
+    { name = "flake8" },
+    { name = "polyfactory" },
+    { name = "pytest" },
+]
 lint = [
     { name = "mypy" },
     { name = "pyrefly" },
@@ -191,6 +197,12 @@ test = [
 [package.metadata]
 
 [package.metadata.requires-dev]
+dev = [
+    { name = "faker", specifier = ">=40.1.2" },
+    { name = "flake8", specifier = ">=7.3.0" },
+    { name = "polyfactory", specifier = ">=3.2.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
+]
 lint = [
     { name = "mypy", specifier = ">=1.19.1" },
     { name = "pyrefly", specifier = ">=0.49.0" },
