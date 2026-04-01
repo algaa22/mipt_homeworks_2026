@@ -66,10 +66,10 @@ def parse_date_numbers(date_parts: list[str]) -> tuple[int, int, int] | None:
 
 
 def get_days_in_month(year: int, month: int) -> int:
-    days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     if month == MOUTH_FEB and is_leap_year(year):
         return 29
-    return days_in_month[month - 1]
+    days = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+    return days[month - 1]
 
 
 def is_valid_date(day: int, month: int, year: int) -> bool:
@@ -353,7 +353,7 @@ def calculate_month_stat(stats_date: tuple[int, int, int]) -> tuple[float, dict[
     return float(month_income), category_stats
 
 
-def _build_stats_lines(
+def build_stats_lines(
     report_date: str,
     total_capital: float,
     month_income: float,
@@ -377,7 +377,7 @@ def _build_stats_lines(
     return lines
 
 
-def _build_category_lines(category_stats: dict[str, float]) -> list[str]:
+def build_category_lines(category_stats: dict[str, float]) -> list[str]:
     if not category_stats:
         return ["Details (category: amount):"]
 
@@ -398,8 +398,8 @@ def format_stats_output(
     month_expenses: float,
     category_stats: dict[str, float],
 ) -> str:
-    lines = _build_stats_lines(report_date, total_capital, month_income, month_expenses)
-    lines.extend(_build_category_lines(category_stats))
+    lines = build_stats_lines(report_date, total_capital, month_income, month_expenses)
+    lines.extend(build_category_lines(category_stats))
     return "\n".join(lines)
 
 
