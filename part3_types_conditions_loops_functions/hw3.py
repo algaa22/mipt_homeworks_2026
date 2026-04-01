@@ -66,8 +66,7 @@ def parse_date_numbers(date_parts: list[str]) -> tuple[int, int, int] | None:
 
 
 def get_days_in_month(year: int, month: int) -> int:
-    days_in_month = [31, 28, 31, 30, 31, 30,
-                     31, 31, 30, 31, 30, 31]
+    days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     if month == MOUTH_FEB and is_leap_year(year):
         return 29
     return days_in_month[month - 1]
@@ -126,6 +125,7 @@ def check_decimal_part(amount: str) -> bool:
 
 def check_amount_format(amount: str) -> bool:
     return check_digits_and_dots(amount) and check_decimal_part(amount)
+
 
 def parse_amount_parts(amount_input: str) -> tuple[float | None, bool]:
     amount = amount_input.replace(",", ".")
@@ -340,9 +340,7 @@ def process_transaction_for_month(
     return month_income, month_expenses + amount
 
 
-def calculate_month_stat(
-        stats_date: tuple[int, int, int]
-) -> tuple[float, dict[str, float]]:
+def calculate_month_stat(stats_date: tuple[int, int, int]) -> tuple[float, dict[str, float]]:
     month_income: float = 0
     month_expenses: float = 0
     category_stats: dict[str, float] = {}
