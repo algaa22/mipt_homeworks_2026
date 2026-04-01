@@ -99,28 +99,36 @@ def is_normal_number(number_part: str) -> bool:
     return number_part.isdigit()
 
 
-def parse_amount_parts(amount_input: str) -> tuple[float | None, bool]:
-    amount = amount_input.replace(",", ".")
-
+def check_amount_format(amount: str) -> bool:
     for i, char in enumerate(amount):
         if i == 0 and char == "-":
             continue
         if char != "." and not char.isdigit():
-            return None, False
+            return False
 
     if amount.count(".") > 1:
-        return None, False
+        return False
 
     if "." in amount:
         parts = amount.split(".")
-        if len(parts) == FLOAT_PARTS and parts[0] and parts[1] and parts[1].isdigit():
-            return float(amount), True
+        if len(parts) != FLOAT_PARTS or not parts[0] or not parts[1]:
+            return False
+        if not parts[1].isdigit():
+            return False
+
+    return True
+
+
+def parse_amount_parts(amount_input: str) -> tuple[float | None, bool]:
+    amount = amount_input.replace(",", ".")
+
+    if not check_amount_format(amount):
         return None, False
 
-    if amount and amount != "-":
-        return float(amount), True
+    if amount in ("", "-"):
+        return None, False
 
-    return None, False
+    return float(amount), True
 
 
 def parse_amount(amount_input: str) -> float | None:
@@ -431,6 +439,20 @@ def process_stats(parts: list[str]) -> str:
     return stats_handler(parts[1])
 
 
+def _process_command(parts: list[str]) -> str:
+    if not parts:
+        return UNKNOWN_COMMAND_MSG
+
+    command = parts[0]
+    if command == "income":
+        return process_income(parts)
+    if command == "cost":
+        return process_cost(parts)
+    if command == "stats":
+        return process_stats(parts)
+    return UNKNOWN_COMMAND_MSG
+
+
 def main() -> None:
     while True:
         command_line = input().strip()
@@ -438,19 +460,8 @@ def main() -> None:
             break
 
         parts = command_line.split()
-        command = parts[0]
-
-        if command == "income":
-            result = process_income(parts)
-            print(result)
-        elif command == "cost":
-            result = process_cost(parts)
-            print(result)
-        elif command == "stats":
-            result = process_stats(parts)
-            print(result)
-        else:
-            print(UNKNOWN_COMMAND_MSG)
+        result = _process_command(parts)
+        print(result)
 
 
 if __name__ == "__main__":
