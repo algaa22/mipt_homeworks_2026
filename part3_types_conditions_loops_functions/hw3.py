@@ -21,6 +21,7 @@ EXPENSE_CATEGORIES = {
 }
 
 financial_transactions_storage: list[dict[str, Any]] = []
+
 DATE_PARTS = 3
 MAX_MONTH = 12
 MOUTH_FEB = 2
@@ -30,6 +31,13 @@ INCOME_ARGS = 3
 COST_ARGS = 4
 STATS_ARGS = 2
 CATEGORIES_COMMAND_ARGS = 2
+TRANSACTION_TYPE = "type"
+TRANSACTION_INCOME = "income"
+TRANSACTION_COST = "cost"
+AMOUNT_KEY = "amount"
+DATE_KEY = "date"
+CATEGORY_KEY = "category"
+PARENT_CATEGORY_KEY = "parent_category"
 
 
 def is_leap_year(year: int) -> bool:
@@ -39,47 +47,84 @@ def is_leap_year(year: int) -> bool:
     return (four and not hundred) or four_hundred
 
 
-def extract_date(maybe_dt: str) -> tuple[int, int, int] | None:
+def split_date_parts(maybe_dt: str) -> list[str] | None:
     parts = maybe_dt.split("-")
     if len(parts) != DATE_PARTS:
         return None
+    return parts
 
-    for part in parts:
+
+def parse_date_numbers(date_parts: list[str]) -> tuple[int, int, int] | None:
+    for part in date_parts:
         if not part.isdigit():
             return None
 
-    day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
-    if year < 1 or month < 1 or month > MAX_MONTH or day < 1:
-        return None
+    day = int(date_parts[0])
+    month = int(date_parts[1])
+    year = int(date_parts[2])
+    return day, month, year
 
+
+def get_days_in_month(year: int, month: int) -> int:
     days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     if month == MOUTH_FEB and is_leap_year(year):
-        days_in_month[1] = 29
+        return 29
+    return days_in_month[month - 1]
 
-    if day > days_in_month[month - 1]:
+
+def is_valid_date(day: int, month: int, year: int) -> bool:
+    if year < 1 or month < 1 or month > MAX_MONTH or day < 1:
+        return False
+    max_day = get_days_in_month(year, month)
+    return day <= max_day
+
+
+def extract_date(maybe_dt: str) -> tuple[int, int, int] | None:
+    date_parts = split_date_parts(maybe_dt)
+    if date_parts is None:
         return None
 
-    return (day, month, year)
+    parsed_numbers = parse_date_numbers(date_parts)
+    if parsed_numbers is None:
+        return None
+
+    day, month, year = parsed_numbers
+    if not is_valid_date(day, month, year):
+        return None
+
+    return day, month, year
 
 
-def parse_amount(amount_input: str) -> float | None:
+def is_normal_number(number_part: str) -> bool:
+    return number_part.isdigit()
+
+
+def parse_amount_parts(amount_input: str) -> tuple[float | None, bool]:
     amount = amount_input.replace(",", ".")
-
     for i, char in enumerate(amount):
         if i == 0 and char == "-":
             continue
         if char != "." and not char.isdigit():
-            return None
+            return None, False
+
     if amount.count(".") > 1:
-        return None
+        return None, False
 
     if "." in amount:
         parts = amount.split(".")
         if len(parts) != FLOAT_PARTS or not parts[0] or not parts[1]:
-            return None
-        if not parts[1].isdigit():
-            return None
-    return float(amount)
+            return None, False
+        if not is_normal_number(parts[1]):
+            return None, False
+    elif amount == "" or amount == "-":
+        return None, False
+
+    return float(amount), True
+
+
+def parse_amount(amount_input: str) -> float | None:
+    result, success = parse_amount_parts(amount_input)
+    return result if success else None
 
 
 def parse_category(category_str: str) -> tuple[str, str] | None:
@@ -100,15 +145,41 @@ def parse_category(category_str: str) -> tuple[str, str] | None:
 def find_category(common_category: str, target_category: str) -> bool:
     if common_category not in EXPENSE_CATEGORIES:
         return False
-
     return target_category in EXPENSE_CATEGORIES[common_category]
 
 
 def cost_categories_handler() -> str:
     result: list[str] = []
     for category, subcategories in EXPENSE_CATEGORIES.items():
-        result.extend(f"{category}::{subcategory}" for subcategory in subcategories)
+        for subcategory in subcategories:
+            result.append(f"{category}::{subcategory}")
     return "\n".join(result)
+
+
+def create_income_transaction(
+    amount: float,
+    date_tuple: tuple[int, int, int],
+) -> dict[str, Any]:
+    return {
+        TRANSACTION_TYPE: TRANSACTION_INCOME,
+        AMOUNT_KEY: amount,
+        DATE_KEY: date_tuple,
+    }
+
+
+def create_cost_transaction(
+    category: str,
+    parent_category: str,
+    amount: float,
+    date_tuple: tuple[int, int, int],
+) -> dict[str, Any]:
+    return {
+        TRANSACTION_TYPE: TRANSACTION_COST,
+        CATEGORY_KEY: category,
+        PARENT_CATEGORY_KEY: parent_category,
+        AMOUNT_KEY: amount,
+        DATE_KEY: date_tuple,
+    }
 
 
 def income_handler(amount: float, income_date: str) -> str:
@@ -121,7 +192,8 @@ def income_handler(amount: float, income_date: str) -> str:
         financial_transactions_storage.append({})
         return INCORRECT_DATE_MSG
 
-    financial_transactions_storage.append({"type": "income", "amount": amount, "date": date_tuple})
+    transaction = create_income_transaction(amount, date_tuple)
+    financial_transactions_storage.append(transaction)
     return OP_SUCCESS_MSG
 
 
@@ -139,84 +211,165 @@ def cost_handler(category_name: str, amount: float, income_date: str) -> str:
     if category_parts is None:
         financial_transactions_storage.append({})
         return NOT_EXISTS_CATEGORY
+
     common_category, target_category = category_parts
 
     if not find_category(common_category, target_category):
         financial_transactions_storage.append({})
         return NOT_EXISTS_CATEGORY
-    financial_transactions_storage.append(
-        {
-            "type": "cost",
-            "category": target_category,
-            "parent_category": common_category,
-            "amount": amount,
-            "date": date_tuple,
-        }
-    )
+
+    transaction = create_cost_transaction(target_category, common_category, amount, date_tuple)
+    financial_transactions_storage.append(transaction)
     return OP_SUCCESS_MSG
 
 
-def date_before_or_equal(transaction_date: tuple[int, int, int], stats_date: tuple[int, int, int]) -> bool:
-    day, month, year = transaction_date
+def _date_before_or_equal(
+    trans_day: int,
+    trans_month: int,
+    trans_year: int,
+    stats_day: int,
+    stats_month: int,
+    stats_year: int,
+) -> bool:
+    if trans_year < stats_year:
+        return True
+    if trans_year > stats_year:
+        return False
+    if trans_month < stats_month:
+        return True
+    if trans_month > stats_month:
+        return False
+    return trans_day <= stats_day
+
+
+def _date_in_month(
+    trans_day: int,
+    trans_month: int,
+    trans_year: int,
+    stats_day: int,
+    stats_month: int,
+    stats_year: int,
+) -> bool:
+    return trans_year == stats_year and trans_month == stats_month and trans_day <= stats_day
+
+
+def _get_transaction_date(transaction: dict[str, Any]) -> tuple[int, int, int] | None:
+    date_value = transaction.get(DATE_KEY)
+    if isinstance(date_value, tuple):
+        return date_value
+    return None
+
+
+def _process_transaction_for_total(
+    transaction: dict[str, Any],
+    stats_date: tuple[int, int, int],
+    total: float,
+) -> float:
+    if not transaction:
+        return total
+
+    date_tuple = _get_transaction_date(transaction)
+    if date_tuple is None:
+        return total
+
+    day, month, year = date_tuple
     stats_day, stats_month, stats_year = stats_date
 
-    if year < stats_year:
-        return True
-    if year > stats_year:
-        return False
-    if month < stats_month:
-        return True
-    if month > stats_month:
-        return False
-    return day <= stats_day
+    if not _date_before_or_equal(day, month, year, stats_day, stats_month, stats_year):
+        return total
 
+    amount = transaction.get(AMOUNT_KEY, 0)
+    amount_value = float(amount)
 
-def date_in_month(transaction_date: tuple[int, int, int], stats_date: tuple[int, int, int]) -> bool:
-    day, month, year = transaction_date
-    stats_day, stats_month, stats_year = stats_date
-    return year == stats_year and month == stats_month and day <= stats_day
+    if transaction.get(TRANSACTION_TYPE) == TRANSACTION_INCOME:
+        return total + amount_value
+    return total - amount_value
 
 
 def calculate_capital(stats_date: tuple[int, int, int]) -> float:
-    total_capital = 0.0
-
+    total = 0.0
     for transaction in financial_transactions_storage:
-        if not transaction:
-            continue
+        total = _process_transaction_for_total(transaction, stats_date, total)
+    return float(total)
 
-        date_tuple = transaction.get("date")
-        if date_tuple is None:
-            continue
 
-        if date_before_or_equal(date_tuple, stats_date):
-            if transaction["type"] == "income":
-                total_capital += transaction["amount"]
-            elif transaction["type"] == "cost":
-                total_capital -= transaction["amount"]
+def process_transaction_for_month(
+    transaction: dict[str, Any],
+    stats_date: tuple[int, int, int],
+    month_income: float,
+    month_expenses: float,
+    category_stats: dict[str, float],
+) -> tuple[float, float]:
+    if not transaction:
+        return month_income, month_expenses
 
-    return total_capital
+    date_tuple = _get_transaction_date(transaction)
+    if date_tuple is None:
+        return month_income, month_expenses
+
+    day, month, year = date_tuple
+    stats_day, stats_month, stats_year = stats_date
+
+    if not _date_in_month(day, month, year, stats_day, stats_month, stats_year):
+        return month_income, month_expenses
+
+    if transaction.get(TRANSACTION_TYPE) == TRANSACTION_INCOME:
+        return month_income + transaction.get(AMOUNT_KEY, 0), month_expenses
+
+    amount = transaction.get(AMOUNT_KEY, 0)
+    parent_category = transaction.get(PARENT_CATEGORY_KEY, "Other")
+    current = category_stats.get(parent_category, 0)
+    category_stats[parent_category] = current + amount
+    return month_income, month_expenses + amount
 
 
 def calculate_month_stat(stats_date: tuple[int, int, int]) -> tuple[float, dict[str, float]]:
-    month_incomes = 0.0
-    month_by_category: dict[str, float] = {}
+    month_income = 0.0
+    month_expenses = 0.0
+    category_stats: dict[str, float] = {}
 
     for transaction in financial_transactions_storage:
-        if not transaction:
-            continue
+        month_income, month_expenses = process_transaction_for_month(
+            transaction, stats_date, month_income, month_expenses, category_stats
+        )
 
-        date_tuple = transaction.get("date")
-        if date_tuple is None:
-            continue
+    return float(month_income), category_stats
 
-        if date_in_month(date_tuple, stats_date):
-            if transaction["type"] == "income":
-                month_incomes += transaction["amount"]
-            elif transaction["type"] == "cost":
-                parent_category = transaction["parent_category"]
-                month_by_category[parent_category] = month_by_category.get(parent_category, 0.0) + transaction["amount"]
 
-    return month_incomes, month_by_category
+def format_stats_output(
+    report_date: str,
+    total_capital: float,
+    month_income: float,
+    month_expenses: float,
+    category_stats: dict[str, float],
+) -> str:
+    result: list[str] = []
+    result.append(f"Your statistics as of {report_date}:")
+    result.append(f"Total capital: {total_capital:.2f} rubles")
+
+    month_result = month_income - month_expenses
+    if month_result >= 0:
+        result.append(f"This month, the profit amounted to {month_result:.2f} rubles.")
+    else:
+        loss = abs(month_result)
+        result.append(f"This month, the loss amounted to {loss:.2f} rubles.")
+
+    result.append(f"Income: {month_income:.2f} rubles")
+    result.append(f"Expenses: {month_expenses:.2f} rubles")
+    result.append("")
+
+    if category_stats:
+        result.append("Details (category: amount):")
+        sorted_categories = sorted(category_stats.items())
+        for idx, (category, amount) in enumerate(sorted_categories, 1):
+            if amount.is_integer():
+                result.append(f"{idx}. {category}: {int(amount)}")
+            else:
+                result.append(f"{idx}. {category}: {amount}")
+    else:
+        result.append("Details (category: amount):")
+
+    return "\n".join(result)
 
 
 def stats_handler(report_date: str) -> str:
@@ -225,36 +378,10 @@ def stats_handler(report_date: str) -> str:
         return INCORRECT_DATE_MSG
 
     total_capital = calculate_capital(date_tuple)
-    month_incomes, month_by_category = calculate_month_stat(date_tuple)
+    month_income, category_stats = calculate_month_stat(date_tuple)
+    month_expenses = sum(category_stats.values())
 
-    month_total_costs = sum(month_by_category.values())
-    month_result = month_incomes - month_total_costs
-
-    result = []
-    result.append(f"Your statistics as of {report_date}:")
-    result.append(f"Total capital: {total_capital:.2f} rubles")
-
-    if month_result >= 0:
-        result.append(f"This month, the profit amounted to {month_result:.2f} rubles.")
-    else:
-        result.append(f"This month, the loss amounted to {abs(month_result):.2f} rubles.")
-
-    result.append(f"Income: {month_incomes:.2f} rubles")
-    result.append(f"Expenses: {month_total_costs:.2f} rubles")
-    result.append("")
-
-    if month_by_category:
-        result.append("Details (category: amount):")
-        sorted_categories = sorted(month_by_category.items())
-        for i, (category, amount) in enumerate(sorted_categories, 1):
-            if amount.is_integer():
-                result.append(f"{i}. {category}: {int(amount)}")
-            else:
-                result.append(f"{i}. {category}: {amount}")
-    else:
-        result.append("Details (category: amount):")
-
-    return "\n".join(result)
+    return format_stats_output(report_date, total_capital, month_income, month_expenses, category_stats)
 
 
 def process_income(parts: list[str]) -> str:

@@ -36,6 +36,7 @@ project-excludes = ["**/*.ipynb*"]
 [dependency-groups]
 dev = [
     "faker>=40.1.2",
+    "flake8>=7.3.0",
     "polyfactory>=3.2.0",
     "pytest>=9.0.2",
 ]
