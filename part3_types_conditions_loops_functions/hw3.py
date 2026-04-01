@@ -68,8 +68,11 @@ def parse_date_numbers(date_parts: list[str]) -> tuple[int, int, int] | None:
 def get_days_in_month(year: int, month: int) -> int:
     if month == MOUTH_FEB and is_leap_year(year):
         return 29
-    days = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-    return days[month - 1]
+    if month in (1, 3, 5, 7, 8, 10, 12):
+        return 31
+    if month in (4, 6, 9, 11):
+        return 30
+    return 28
 
 
 def is_valid_date(day: int, month: int, year: int) -> bool:
@@ -340,7 +343,10 @@ def process_transaction_for_month(
     return month_income, month_expenses + amount
 
 
-def calculate_month_stat(stats_date: tuple[int, int, int]) -> tuple[float, dict[str, float]]:
+SResult = tuple[float, dict[str, float]]
+
+
+def calculate_month_stat(stats_date: tuple[int, int, int]) -> SResult:
     month_income: float = 0
     month_expenses: float = 0
     category_stats: dict[str, float] = {}
@@ -350,7 +356,7 @@ def calculate_month_stat(stats_date: tuple[int, int, int]) -> tuple[float, dict[
             transaction, stats_date, month_income, month_expenses, category_stats
         )
 
-    return float(month_income), category_stats
+    return month_income, category_stats
 
 
 def build_stats_lines(
