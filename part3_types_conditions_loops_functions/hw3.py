@@ -125,12 +125,7 @@ def check_decimal_part(amount: str) -> bool:
 
 
 def check_amount_format(amount: str) -> bool:
-    if not check_digits_and_dots(amount):
-        return False
-    if not check_decimal_part(amount):
-        return False
-    return True
-
+    return check_digits_and_dots(amount) and check_decimal_part(amount)
 
 def parse_amount_parts(amount_input: str) -> tuple[float | None, bool]:
     amount = amount_input.replace(",", ".")
