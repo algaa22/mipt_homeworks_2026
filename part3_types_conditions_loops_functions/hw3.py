@@ -66,7 +66,8 @@ def parse_date_numbers(date_parts: list[str]) -> tuple[int, int, int] | None:
 
 
 def get_days_in_month(year: int, month: int) -> int:
-    days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    days_in_month = [31, 28, 31, 30, 31, 30,
+                     31, 31, 30, 31, 30, 31]
     if month == MOUTH_FEB and is_leap_year(year):
         return 29
     return days_in_month[month - 1]
@@ -99,23 +100,35 @@ def is_normal_number(number_part: str) -> bool:
     return number_part.isdigit()
 
 
-def check_amount_format(amount: str) -> bool:
+def check_digits_and_dots(amount: str) -> bool:
     for i, char in enumerate(amount):
         if i == 0 and char == "-":
             continue
         if char != "." and not char.isdigit():
             return False
+    return True
 
+
+def check_decimal_part(amount: str) -> bool:
     if amount.count(".") > 1:
         return False
 
     if "." in amount:
         parts = amount.split(".")
-        if len(parts) != FLOAT_PARTS or not parts[0] or not parts[1]:
+        if len(parts) != FLOAT_PARTS:
+            return False
+        if not parts[0] or not parts[1]:
             return False
         if not parts[1].isdigit():
             return False
+    return True
 
+
+def check_amount_format(amount: str) -> bool:
+    if not check_digits_and_dots(amount):
+        return False
+    if not check_decimal_part(amount):
+        return False
     return True
 
 
@@ -332,7 +345,9 @@ def process_transaction_for_month(
     return month_income, month_expenses + amount
 
 
-def calculate_month_stat(stats_date: tuple[int, int, int]) -> tuple[float, dict[str, float]]:
+def calculate_month_stat(
+        stats_date: tuple[int, int, int]
+) -> tuple[float, dict[str, float]]:
     month_income: float = 0
     month_expenses: float = 0
     category_stats: dict[str, float] = {}
