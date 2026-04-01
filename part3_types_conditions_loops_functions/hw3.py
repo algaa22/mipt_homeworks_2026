@@ -101,6 +101,7 @@ def is_normal_number(number_part: str) -> bool:
 
 def parse_amount_parts(amount_input: str) -> tuple[float | None, bool]:
     amount = amount_input.replace(",", ".")
+
     for i, char in enumerate(amount):
         if i == 0 and char == "-":
             continue
@@ -112,14 +113,14 @@ def parse_amount_parts(amount_input: str) -> tuple[float | None, bool]:
 
     if "." in amount:
         parts = amount.split(".")
-        if len(parts) != FLOAT_PARTS or not parts[0] or not parts[1]:
-            return None, False
-        if not is_normal_number(parts[1]):
-            return None, False
-    elif amount in ("", "-"):
+        if len(parts) == FLOAT_PARTS and parts[0] and parts[1] and parts[1].isdigit():
+            return float(amount), True
         return None, False
 
-    return float(amount), True
+    if amount and amount != "-":
+        return float(amount), True
+
+    return None, False
 
 
 def parse_amount(amount_input: str) -> float | None:
@@ -285,7 +286,7 @@ def process_transaction_for_total(
 
 
 def calculate_capital(stats_date: tuple[int, int, int]) -> float:
-    total = 0.0
+    total: float = 0
     for transaction in financial_transactions_storage:
         total = process_transaction_for_total(transaction, stats_date, total)
     return float(total)
@@ -324,8 +325,8 @@ def process_transaction_for_month(
 
 
 def calculate_month_stat(stats_date: tuple[int, int, int]) -> tuple[float, dict[str, float]]:
-    month_income = 0.0
-    month_expenses = 0.0
+    month_income: float = 0
+    month_expenses: float = 0
     category_stats: dict[str, float] = {}
 
     for transaction in financial_transactions_storage:
@@ -336,6 +337,44 @@ def calculate_month_stat(stats_date: tuple[int, int, int]) -> tuple[float, dict[
     return float(month_income), category_stats
 
 
+def _build_stats_lines(
+    report_date: str,
+    total_capital: float,
+    month_income: float,
+    month_expenses: float,
+) -> list[str]:
+    lines = [
+        f"Your statistics as of {report_date}:",
+        f"Total capital: {total_capital:.2f} rubles",
+    ]
+
+    month_result = month_income - month_expenses
+    if month_result >= 0:
+        lines.append(f"This month, the profit amounted to {month_result:.2f} rubles.")
+    else:
+        loss = abs(month_result)
+        lines.append(f"This month, the loss amounted to {loss:.2f} rubles.")
+
+    lines.append(f"Income: {month_income:.2f} rubles")
+    lines.append(f"Expenses: {month_expenses:.2f} rubles")
+    lines.append("")
+    return lines
+
+
+def _build_category_lines(category_stats: dict[str, float]) -> list[str]:
+    if not category_stats:
+        return ["Details (category: amount):"]
+
+    lines = ["Details (category: amount):"]
+    sorted_categories = sorted(category_stats.items())
+    for idx, (category, amount) in enumerate(sorted_categories, 1):
+        if amount.is_integer():
+            lines.append(f"{idx}. {category}: {int(amount)}")
+        else:
+            lines.append(f"{idx}. {category}: {amount}")
+    return lines
+
+
 def format_stats_output(
     report_date: str,
     total_capital: float,
@@ -343,33 +382,9 @@ def format_stats_output(
     month_expenses: float,
     category_stats: dict[str, float],
 ) -> str:
-    result: list[str] = []
-    result.append(f"Your statistics as of {report_date}:")
-    result.append(f"Total capital: {total_capital:.2f} rubles")
-
-    month_result = month_income - month_expenses
-    if month_result >= 0:
-        result.append(f"This month, the profit amounted to {month_result:.2f} rubles.")
-    else:
-        loss = abs(month_result)
-        result.append(f"This month, the loss amounted to {loss:.2f} rubles.")
-
-    result.append(f"Income: {month_income:.2f} rubles")
-    result.append(f"Expenses: {month_expenses:.2f} rubles")
-    result.append("")
-
-    if category_stats:
-        result.append("Details (category: amount):")
-        sorted_categories = sorted(category_stats.items())
-        for idx, (category, amount) in enumerate(sorted_categories, 1):
-            if amount.is_integer():
-                result.append(f"{idx}. {category}: {int(amount)}")
-            else:
-                result.append(f"{idx}. {category}: {amount}")
-    else:
-        result.append("Details (category: amount):")
-
-    return "\n".join(result)
+    lines = _build_stats_lines(report_date, total_capital, month_income, month_expenses)
+    lines.extend(_build_category_lines(category_stats))
+    return "\n".join(lines)
 
 
 def stats_handler(report_date: str) -> str:
