@@ -223,8 +223,8 @@ def cost_handler(category_name: str, amount: float, income_date: str) -> str:
 
 
 def date_before_or_equal(
-        trans_date: tuple[int, int, int],
-        stats_date: tuple[int, int, int],
+    trans_date: tuple[int, int, int],
+    stats_date: tuple[int, int, int],
 ) -> bool:
     trans_day, trans_month, trans_year = trans_date
     stats_day, stats_month, stats_year = stats_date
@@ -241,8 +241,8 @@ def date_before_or_equal(
 
 
 def date_in_month(
-        trans_date: tuple[int, int, int],
-        stats_date: tuple[int, int, int],
+    trans_date: tuple[int, int, int],
+    stats_date: tuple[int, int, int],
 ) -> bool:
     trans_day, trans_month, trans_year = trans_date
     stats_day, stats_month, stats_year = stats_date
