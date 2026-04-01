@@ -116,7 +116,7 @@ def parse_amount_parts(amount_input: str) -> tuple[float | None, bool]:
             return None, False
         if not is_normal_number(parts[1]):
             return None, False
-    elif amount == "" or amount == "-":
+    elif amount in ("", "-"):
         return None, False
 
     return float(amount), True
@@ -151,8 +151,7 @@ def find_category(common_category: str, target_category: str) -> bool:
 def cost_categories_handler() -> str:
     result: list[str] = []
     for category, subcategories in EXPENSE_CATEGORIES.items():
-        for subcategory in subcategories:
-            result.append(f"{category}::{subcategory}")
+        result.extend(f"{category}::{subcategory}" for subcategory in subcategories)
     return "\n".join(result)
 
 
@@ -223,14 +222,13 @@ def cost_handler(category_name: str, amount: float, income_date: str) -> str:
     return OP_SUCCESS_MSG
 
 
-def _date_before_or_equal(
-    trans_day: int,
-    trans_month: int,
-    trans_year: int,
-    stats_day: int,
-    stats_month: int,
-    stats_year: int,
+def date_before_or_equal(
+        trans_date: tuple[int, int, int],
+        stats_date: tuple[int, int, int],
 ) -> bool:
+    trans_day, trans_month, trans_year = trans_date
+    stats_day, stats_month, stats_year = stats_date
+
     if trans_year < stats_year:
         return True
     if trans_year > stats_year:
@@ -242,25 +240,23 @@ def _date_before_or_equal(
     return trans_day <= stats_day
 
 
-def _date_in_month(
-    trans_day: int,
-    trans_month: int,
-    trans_year: int,
-    stats_day: int,
-    stats_month: int,
-    stats_year: int,
+def date_in_month(
+        trans_date: tuple[int, int, int],
+        stats_date: tuple[int, int, int],
 ) -> bool:
+    trans_day, trans_month, trans_year = trans_date
+    stats_day, stats_month, stats_year = stats_date
     return trans_year == stats_year and trans_month == stats_month and trans_day <= stats_day
 
 
-def _get_transaction_date(transaction: dict[str, Any]) -> tuple[int, int, int] | None:
+def get_transaction_date(transaction: dict[str, Any]) -> tuple[int, int, int] | None:
     date_value = transaction.get(DATE_KEY)
     if isinstance(date_value, tuple):
         return date_value
     return None
 
 
-def _process_transaction_for_total(
+def process_transaction_for_total(
     transaction: dict[str, Any],
     stats_date: tuple[int, int, int],
     total: float,
@@ -268,14 +264,16 @@ def _process_transaction_for_total(
     if not transaction:
         return total
 
-    date_tuple = _get_transaction_date(transaction)
+    date_tuple = get_transaction_date(transaction)
     if date_tuple is None:
         return total
 
     day, month, year = date_tuple
     stats_day, stats_month, stats_year = stats_date
 
-    if not _date_before_or_equal(day, month, year, stats_day, stats_month, stats_year):
+    trans_date = (day, month, year)
+    stats_date_tuple = (stats_day, stats_month, stats_year)
+    if not date_before_or_equal(trans_date, stats_date_tuple):
         return total
 
     amount = transaction.get(AMOUNT_KEY, 0)
@@ -289,7 +287,7 @@ def _process_transaction_for_total(
 def calculate_capital(stats_date: tuple[int, int, int]) -> float:
     total = 0.0
     for transaction in financial_transactions_storage:
-        total = _process_transaction_for_total(transaction, stats_date, total)
+        total = process_transaction_for_total(transaction, stats_date, total)
     return float(total)
 
 
@@ -303,14 +301,16 @@ def process_transaction_for_month(
     if not transaction:
         return month_income, month_expenses
 
-    date_tuple = _get_transaction_date(transaction)
+    date_tuple = get_transaction_date(transaction)
     if date_tuple is None:
         return month_income, month_expenses
 
     day, month, year = date_tuple
     stats_day, stats_month, stats_year = stats_date
 
-    if not _date_in_month(day, month, year, stats_day, stats_month, stats_year):
+    trans_date = (day, month, year)
+    stats_date_tuple = (stats_day, stats_month, stats_year)
+    if not date_before_or_equal(trans_date, stats_date_tuple):
         return month_income, month_expenses
 
     if transaction.get(TRANSACTION_TYPE) == TRANSACTION_INCOME:
