@@ -118,7 +118,7 @@ class LFUPolicy(Policy[K]):
         return None
 
     def remove_key(self, key: K) -> None:
-        self._key_counter.pop(key, None)  # FIXED
+        self._key_counter.pop(key, None)
         if key in self._order:
             self._order.remove(key)
 
