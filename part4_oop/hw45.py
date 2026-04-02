@@ -98,15 +98,20 @@ class LFUPolicy(Policy[K]):
             return None
 
         last_key = self._order[-1] if self._order else None
+        min_count = min(self._key_counter.values())
 
-        candidates = [
-            k for k in self._order if k != last_key and self._key_counter[k] == min(self._key_counter.values())
-        ]
+        candidates = []
+        for key in self._order:
+            if key != last_key and self._key_counter[key] == min_count:
+                candidates.append(key)
 
         if candidates:
             return candidates[0]
 
-        return self._order[0]
+        if self._order:
+            return self._order[0]
+
+        return None
 
     def remove_key(self, key: K) -> None:
         if key in self._key_counter:
@@ -164,7 +169,8 @@ class CachedProperty[V]:
         if instance is None:
             return self
 
-        cache_key = f"_cached_{self.func.__name__}"
+        func_name = self.func.__name__
+        cache_key = f"_cached_{func_name}"
 
         if instance.cache.exists(cache_key):
             value = instance.cache.get(cache_key)
