@@ -22,8 +22,7 @@ class DictStorage(Storage[K, V]):
         return key in self._data
 
     def remove(self, key: K) -> None:
-        if key in self._data:
-            del self._data[key]
+        self._data.pop(key, None)
 
     def clear(self) -> None:
         self._data.clear()
@@ -93,6 +92,9 @@ class LFUPolicy(Policy[K]):
             self._order.append(key)
         self._key_counter[key] = self._key_counter.get(key, 0) + 1
 
+    def _is_candidate(self, key: K, last_key: K | None, min_count: int) -> bool:
+        return key != last_key and self._key_counter[key] == min_count
+
     def get_key_to_evict(self) -> K | None:
         if not self.has_keys or len(self._key_counter) <= self.capacity:
             return None
@@ -100,7 +102,12 @@ class LFUPolicy(Policy[K]):
         last_key = self._order[-1] if self._order else None
         min_count = min(self._key_counter.values())
 
-        candidates = [key for key in self._order if key != last_key and self._key_counter[key] == min_count]
+        candidates = list(
+            filter(
+                lambda key: self._is_candidate(key, last_key, min_count),
+                self._order,
+            ),
+        )
 
         if candidates:
             return candidates[0]
@@ -111,8 +118,7 @@ class LFUPolicy(Policy[K]):
         return None
 
     def remove_key(self, key: K) -> None:
-        if key in self._key_counter:
-            del self._key_counter[key]
+        self._key_counter.pop(key, None)  # FIXED
         if key in self._order:
             self._order.remove(key)
 
