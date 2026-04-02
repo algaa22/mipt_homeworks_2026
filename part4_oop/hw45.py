@@ -92,9 +92,6 @@ class LFUPolicy(Policy[K]):
             self._order.append(key)
         self._key_counter[key] = self._key_counter.get(key, 0) + 1
 
-    def _is_candidate(self, key: K, last_key: K | None, min_count: int) -> bool:
-        return key != last_key and self._key_counter[key] == min_count
-
     def get_key_to_evict(self) -> K | None:
         if not self.has_keys or len(self._key_counter) <= self.capacity:
             return None
@@ -129,6 +126,9 @@ class LFUPolicy(Policy[K]):
     @property
     def has_keys(self) -> bool:
         return len(self._key_counter) > 0
+
+    def _is_candidate(self, key: K, last_key: K | None, min_count: int) -> bool:
+        return key != last_key and self._key_counter[key] == min_count
 
 
 class MIPTCache(Cache[K, V]):
