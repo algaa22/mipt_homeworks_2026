@@ -100,10 +100,7 @@ class LFUPolicy(Policy[K]):
         last_key = self._order[-1] if self._order else None
         min_count = min(self._key_counter.values())
 
-        candidates = []
-        for key in self._order:
-            if key != last_key and self._key_counter[key] == min_count:
-                candidates.append(key)
+        candidates = [key for key in self._order if key != last_key and self._key_counter[key] == min_count]
 
         if candidates:
             return candidates[0]
