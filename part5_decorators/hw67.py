@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone
-from typing import Any, ParamSpec, Protocol, TypeVar, Optional
+from typing import Any, Optional, ParamSpec, Protocol, TypeVar
 from urllib.request import urlopen
 
 INVALID_CRITICAL_COUNT = "Breaker count must be positive integer!"
@@ -21,7 +21,7 @@ class CallableWithMeta(Protocol[P, R_co]):
 
 class BreakerError(Exception):
     def __init__(self, message: str, func_name: str, block_time: datetime,
-                 source_exception: Optional[Exception] = None):
+                 source_exception: Exception | None = None):
         self.func_name = func_name
         self.block_time = block_time
         self.source_exception = source_exception
@@ -47,14 +47,14 @@ class CircuitBreaker:
         self.time_to_recover = time_to_recover
         self.triggers_on = triggers_on
         self._failure_count = 0
-        self._block_time: Optional[datetime] = None
+        self._block_time: datetime | None = None
 
     def __call__(self, func: CallableWithMeta[P, R_co]) -> CallableWithMeta[P, R_co]:
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R_co:
             func_name = f"{func.__module__}.{func.__name__}"
 
             if self._block_time is not None:
-                if (datetime.now(timezone.utc) - self._block_time).total_seconds() >= self.time_to_recover:
+                if (datetime.now(datetime.UTC) - self._block_time).total_seconds() >= self.time_to_recover:
                     self._failure_count = 0
                     self._block_time = None
                 else:
@@ -62,15 +62,16 @@ class CircuitBreaker:
 
             try:
                 result = func(*args, **kwargs)
-                self._failure_count = 0
-                return result
             except Exception as e:
                 if isinstance(e, self.triggers_on):
                     self._failure_count += 1
                     if self._failure_count >= self.critical_count:
-                        self._block_time = datetime.now(timezone.utc)
+                        self._block_time = datetime.now(datetime.UTC)
                         raise BreakerError(TOO_MUCH, func_name, self._block_time, e) from e
-                raise e
+                raise
+            else:
+                self._failure_count = 0
+                return result
 
         wrapper.__name__ = func.__name__
         wrapper.__module__ = func.__module__
