@@ -31,10 +31,18 @@ class BreakerError(Exception):
 class CircuitBreaker:
     def __init__(
         self,
-        critical_count: int,
-        time_to_recover: int,
-        triggers_on: type[Exception],
-    ):
+        critical_count: int = 5,
+        time_to_recover: int = 30,
+        triggers_on: type[Exception] = Exception,
+    ) -> None:
+        self._validate_params(critical_count, time_to_recover)
+        self.critical_count = critical_count
+        self.time_to_recover = time_to_recover
+        self.triggers_on = triggers_on
+        self._failure_count = 0
+        self._block_time: datetime | None = None
+
+    def _validate_params(self, critical_count: int, time_to_recover: int) -> None:
         errors = []
         if critical_count <= 0:
             errors.append(ValueError(INVALID_CRITICAL_COUNT))
@@ -43,31 +51,39 @@ class CircuitBreaker:
         if errors:
             raise ExceptionGroup(VALIDATIONS_FAILED, errors)
 
-        self.critical_count = critical_count
-        self.time_to_recover = time_to_recover
-        self.triggers_on = triggers_on
-        self._failure_count = 0
-        self._block_time: datetime | None = None
+    def _is_blocked(self) -> bool:
+        if self._block_time is None:
+            return False
+        time_passed = (datetime.now(timezone.utc) - self._block_time).total_seconds()
+        if time_passed >= self.time_to_recover:
+            self._failure_count = 0
+            self._block_time = None
+            return False
+        return True
+
+    def _handle_error(self, error: Exception, func_name: str) -> None:
+        if not isinstance(error, self.triggers_on):
+            raise error
+        self._failure_count += 1
+        if self._failure_count >= self.critical_count:
+            self._block_time = datetime.now(timezone.utc)
+            raise BreakerError(TOO_MUCH, func_name, self._block_time, error) from error
+        raise error
 
     def __call__(self, func: CallableWithMeta[P, R_co]) -> CallableWithMeta[P, R_co]:
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R_co:
             func_name = f"{func.__module__}.{func.__name__}"
 
-            if self._block_time is not None:
-                if (datetime.now(timezone.utc) - self._block_time).total_seconds() >= self.time_to_recover:
-                    self._failure_count = 0
-                    self._block_time = None
-                else:
-                    raise BreakerError(TOO_MUCH, func_name, self._block_time)
+            if self._is_blocked():
+                block_time = self._block_time
+                if block_time is None:
+                    block_time = datetime.now(timezone.utc)
+                raise BreakerError(TOO_MUCH, func_name, block_time)
 
             try:
                 result = func(*args, **kwargs)
-            except Exception as e:
-                if isinstance(e, self.triggers_on):
-                    self._failure_count += 1
-                    if self._failure_count >= self.critical_count:
-                        self._block_time = datetime.now(timezone.utc)
-                        raise BreakerError(TOO_MUCH, func_name, self._block_time, e) from e
+            except Exception as error:
+                self._handle_error(error, func_name)
                 raise
             else:
                 self._failure_count = 0
