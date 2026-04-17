@@ -42,6 +42,37 @@ class CircuitBreaker:
         self._failure_count = 0
         self._block_time: datetime | None = None
 
+    def __call__(self, func: CallableWithMeta[P, R_co]) -> CallableWithMeta[P, R_co]:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R_co:
+            self._check_blocked(func)
+
+            try:
+                result = func(*args, **kwargs)
+            except Exception as error:
+                self._handle_error(error, func)
+                raise
+            else:
+                self._failure_count = 0
+                return result
+
+        wrapper.__name__ = func.__name__
+        wrapper.__module__ = func.__module__
+        return wrapper
+
+    def _check_blocked(self, func: CallableWithMeta[P, R_co]) -> None:
+        func_name = f"{func.__module__}.{func.__name__}"
+
+        if self._block_time is None:
+            return
+
+        time_passed = (datetime.now(timezone.utc) - self._block_time).total_seconds()
+        if time_passed >= self.time_to_recover:
+            self._failure_count = 0
+            self._block_time = None
+            return
+
+        raise BreakerError(TOO_MUCH, func_name, self._block_time)
+
     def _validate_params(self, critical_count: int, time_to_recover: int) -> None:
         errors = []
         if critical_count <= 0:
@@ -61,7 +92,9 @@ class CircuitBreaker:
             return False
         return True
 
-    def _handle_error(self, error: Exception, func_name: str) -> None:
+    def _handle_error(self, error: Exception, func: CallableWithMeta[P, R_co]) -> None:
+        func_name = f"{func.__module__}.{func.__name__}"
+
         if not isinstance(error, self.triggers_on):
             raise error
         self._failure_count += 1
@@ -69,29 +102,6 @@ class CircuitBreaker:
             self._block_time = datetime.now(timezone.utc)
             raise BreakerError(TOO_MUCH, func_name, self._block_time, error) from error
         raise error
-
-    def __call__(self, func: CallableWithMeta[P, R_co]) -> CallableWithMeta[P, R_co]:
-        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R_co:
-            func_name = f"{func.__module__}.{func.__name__}"
-
-            if self._is_blocked():
-                block_time = self._block_time
-                if block_time is None:
-                    block_time = datetime.now(timezone.utc)
-                raise BreakerError(TOO_MUCH, func_name, block_time)
-
-            try:
-                result = func(*args, **kwargs)
-            except Exception as error:
-                self._handle_error(error, func_name)
-                raise
-            else:
-                self._failure_count = 0
-                return result
-
-        wrapper.__name__ = func.__name__
-        wrapper.__module__ = func.__module__
-        return wrapper
 
 
 circuit_breaker = CircuitBreaker(5, 30, Exception)
