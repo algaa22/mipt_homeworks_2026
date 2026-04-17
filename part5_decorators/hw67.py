@@ -21,8 +21,7 @@ class CallableWithMeta(Protocol[P, R_co]):
 
 
 class BreakerError(Exception):
-    def __init__(self, message: str, func_name: str, block_time: datetime,
-                 source_exception: Exception | None = None):
+    def __init__(self, message: str, func_name: str, block_time: datetime, source_exception: Exception | None = None):
         self.func_name = func_name
         self.block_time = block_time
         self.source_exception = source_exception
