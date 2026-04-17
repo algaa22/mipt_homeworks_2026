@@ -1,6 +1,7 @@
+# ruff: noqa: UP017
 import json
 from datetime import datetime, timezone
-from typing import Any, Optional, ParamSpec, Protocol, TypeVar
+from typing import Any, ParamSpec, Protocol, TypeVar
 from urllib.request import urlopen
 
 INVALID_CRITICAL_COUNT = "Breaker count must be positive integer!"
@@ -54,7 +55,7 @@ class CircuitBreaker:
             func_name = f"{func.__module__}.{func.__name__}"
 
             if self._block_time is not None:
-                if (datetime.now(datetime.UTC) - self._block_time).total_seconds() >= self.time_to_recover:
+                if (datetime.now(timezone.utc) - self._block_time).total_seconds() >= self.time_to_recover:
                     self._failure_count = 0
                     self._block_time = None
                 else:
@@ -66,7 +67,7 @@ class CircuitBreaker:
                 if isinstance(e, self.triggers_on):
                     self._failure_count += 1
                     if self._failure_count >= self.critical_count:
-                        self._block_time = datetime.now(datetime.UTC)
+                        self._block_time = datetime.now(timezone.utc)
                         raise BreakerError(TOO_MUCH, func_name, self._block_time, e) from e
                 raise
             else:
