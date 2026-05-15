@@ -1,6 +1,5 @@
-# ruff: noqa: UP017
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, ParamSpec, Protocol, TypeVar
 from urllib.request import urlopen
 
@@ -21,10 +20,9 @@ class CallableWithMeta(Protocol[P, R_co]):
 
 
 class BreakerError(Exception):
-    def __init__(self, message: str, func_name: str, block_time: datetime, source_exception: Exception | None = None):
+    def __init__(self, message: str, func_name: str, block_time: datetime):
         self.func_name = func_name
         self.block_time = block_time
-        self.source_exception = source_exception
         super().__init__(message)
 
 
@@ -65,7 +63,7 @@ class CircuitBreaker:
         if self._block_time is None:
             return
 
-        time_passed = (datetime.now(timezone.utc) - self._block_time).total_seconds()
+        time_passed = (datetime.now(UTC) - self._block_time).total_seconds()
         if time_passed >= self.time_to_recover:
             self._failure_count = 0
             self._block_time = None
@@ -75,22 +73,18 @@ class CircuitBreaker:
 
     def _validate_params(self, critical_count: int, time_to_recover: int) -> None:
         errors = []
-        if critical_count <= 0:
+
+        if not isinstance(critical_count, int) or isinstance(critical_count, bool):
+            errors.append(TypeError(f"critical_count must be int, got {type(critical_count).__name__}"))
+        elif critical_count <= 0:
             errors.append(ValueError(INVALID_CRITICAL_COUNT))
-        if time_to_recover <= 0:
+        if not isinstance(time_to_recover, int) or isinstance(time_to_recover, bool):
+            errors.append(TypeError(f"time_to_recover must be int, got {type(time_to_recover).__name__}"))
+        elif time_to_recover <= 0:
             errors.append(ValueError(INVALID_RECOVERY_TIME))
+
         if errors:
             raise ExceptionGroup(VALIDATIONS_FAILED, errors)
-
-    def _is_blocked(self) -> bool:
-        if self._block_time is None:
-            return False
-        time_passed = (datetime.now(timezone.utc) - self._block_time).total_seconds()
-        if time_passed >= self.time_to_recover:
-            self._failure_count = 0
-            self._block_time = None
-            return False
-        return True
 
     def _handle_error(self, error: Exception, func: CallableWithMeta[P, R_co]) -> None:
         func_name = f"{func.__module__}.{func.__name__}"
@@ -99,8 +93,8 @@ class CircuitBreaker:
             raise error
         self._failure_count += 1
         if self._failure_count >= self.critical_count:
-            self._block_time = datetime.now(timezone.utc)
-            raise BreakerError(TOO_MUCH, func_name, self._block_time, error) from error
+            self._block_time = datetime.now(UTC)
+            raise BreakerError(TOO_MUCH, func_name, self._block_time) from error
         raise error
 
 
