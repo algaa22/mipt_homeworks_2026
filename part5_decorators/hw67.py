@@ -72,7 +72,7 @@ class CircuitBreaker:
         raise BreakerError(TOO_MUCH, func_name, self._block_time)
 
     def _validate_params(self, critical_count: int, time_to_recover: int) -> None:
-        errors = []
+        errors: list[ValueError | TypeError] = []
 
         if not isinstance(critical_count, int) or isinstance(critical_count, bool):
             errors.append(TypeError(f"critical_count must be int, got {type(critical_count).__name__}"))
