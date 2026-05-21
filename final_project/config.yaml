@@ -1,0 +1,7 @@
+api_key: ollama
+api_host: http://localhost:11434/v1/
+model: qwen2.5:7b
+limit_message: 20
+limit_chars: 4000
+temperature: 0.5
+system_prompt: "Ты русскоязычный ИИ-ассистент. Отвечай на русском языке, никогда не используй китайский и английский. Будь веселым и дружелюбным."
